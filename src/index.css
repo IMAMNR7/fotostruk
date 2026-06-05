@@ -1,0 +1,518 @@
+/* Premium Dark Space/Glassmorphic Styling for FotoStruk React */
+
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Fira+Code:wght@400;500;600;700&display=swap');
+
+:root {
+  --bg-app: #060813;
+  --bg-sidebar: #0b0f19;
+  --card-bg: rgba(17, 24, 39, 0.55);
+  --card-border: rgba(255, 255, 255, 0.06);
+  --text-main: #f8fafc;
+  --text-muted: #64748b;
+  
+  --accent-blue: #3b82f6;
+  --accent-emerald: #10b981;
+  --accent-purple: #8b5cf6;
+  --accent-gold: #f59e0b;
+  --accent-pink: #ec4899;
+  
+  --font-sans: 'Outfit', 'Plus Jakarta Sans', sans-serif;
+  --font-mono: 'Fira Code', monospace;
+  
+  --transition-speed: 0.25s;
+}
+
+/* Base Styles */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--bg-app);
+  color: var(--text-main);
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Sidebar and Panels */
+.sidebar {
+  background-color: var(--bg-sidebar);
+  border-right: 1px solid var(--card-border);
+  padding: 1.5rem;
+  height: 100vh;
+  box-shadow: 10px 0 30px rgba(0,0,0,0.5);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.05) transparent;
+}
+
+.sidebar::-webkit-scrollbar {
+  width: 4px;
+}
+.sidebar::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.05);
+  border-radius: 2px;
+}
+
+.card {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 18px;
+  padding: 1.25rem;
+  backdrop-filter: blur(10px);
+  transition: border-color var(--transition-speed);
+}
+
+.card:hover {
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.card-bluetooth {
+  border-left: 4px solid var(--accent-blue);
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 1rem;
+}
+
+.card-icon {
+  width: 1.25rem;
+  height: 1.25rem;
+  color: var(--accent-blue);
+}
+
+.card-header h2 {
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+}
+
+.card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+/* Upload Area */
+.upload-area {
+  border: 2px dashed rgba(255, 255, 255, 0.15);
+  border-radius: 12px;
+  padding: 1.5rem;
+  text-align: center;
+  cursor: pointer;
+  transition: all var(--transition-speed);
+}
+
+.upload-area:hover {
+  border-color: var(--accent-emerald);
+  background: rgba(16, 185, 129, 0.03);
+}
+
+/* Sliders */
+.slider-info {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-bottom: 0.35rem;
+}
+
+.range-slider {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 5px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.08);
+  outline: none;
+}
+
+.range-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent-blue);
+  cursor: pointer;
+  transition: transform 0.1s;
+}
+
+.range-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+
+/* Segmented Control (Pills) */
+.segmented-control {
+  display: flex;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 10px;
+  padding: 2px;
+  border: 1px solid rgba(255,255,255,0.03);
+}
+
+.segmented-control label {
+  flex: 1;
+  text-align: center;
+  padding: 0.5rem 0.25rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  border-radius: 8px;
+  cursor: pointer;
+  color: var(--text-muted);
+  transition: all var(--transition-speed);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+}
+
+.segmented-control label input {
+  display: none;
+}
+
+.segmented-control label.active {
+  background: var(--accent-blue);
+  color: #ffffff;
+  box-shadow: 0 4px 10px rgba(59, 130, 246, 0.25);
+}
+
+/* Checkboxes */
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.825rem;
+  color: #cbd5e1;
+  cursor: pointer;
+}
+
+.checkbox-label input {
+  accent-color: var(--accent-blue);
+}
+
+/* Connection Status Dot */
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.status-connected {
+  background-color: var(--accent-emerald);
+  box-shadow: 0 0 8px var(--accent-emerald);
+}
+
+.status-connecting {
+  background-color: var(--accent-gold);
+  box-shadow: 0 0 8px var(--accent-gold);
+  animation: pulse 1s infinite alternate;
+}
+
+.status-disconnected {
+  background-color: #ef4444;
+  box-shadow: 0 0 8px #ef4444;
+}
+
+@keyframes pulse {
+  to { opacity: 0.5; }
+}
+
+/* Buttons */
+.btn {
+  padding: 0.65rem 1.25rem;
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all var(--transition-speed);
+  border: none;
+}
+
+.btn-primary {
+  background: var(--accent-blue);
+  color: white;
+}
+
+.btn-primary:hover {
+  background: #2563eb;
+  transform: translateY(-1px);
+}
+
+.btn-secondary {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-main);
+  border: 1px solid rgba(255,255,255,0.08);
+}
+
+.btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.1);
+  transform: translateY(-1px);
+}
+
+/* Thumbnail Grid */
+.thumbnail-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.4rem;
+  margin-top: 0.4rem;
+}
+
+.thumbnail-item {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.1);
+}
+
+.thumbnail-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.thumbnail-delete {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: rgba(239, 68, 68, 0.85);
+  color: white;
+  border: none;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+/* Main Layout & Receipt Mockup */
+.main-content {
+  background-color: var(--bg-app);
+}
+
+.printer-mockup {
+  width: 320px;
+  margin: 0 auto;
+  perspective: 1000px;
+}
+
+.printer-top {
+  height: 14px;
+  background: #101726;
+  border-radius: 8px 8px 0 0;
+  border-bottom: 2px solid #233145;
+}
+
+.printer-slot {
+  height: 6px;
+  background: #020617;
+  margin-bottom: 1rem;
+  box-shadow: inset 0 2px 5px rgba(0,0,0,0.8);
+  position: relative;
+  z-index: 2;
+}
+
+/* Receipt Paper simulation */
+.receipt-paper {
+  background: #ffffff;
+  color: #000000;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.4;
+  padding: 16px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.45);
+  border-left: 1px solid #d1d5db;
+  border-right: 1px solid #d1d5db;
+  position: relative;
+  top: -12px;
+  z-index: 1;
+  transition: all 0.3s ease;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.15));
+}
+
+.receipt-paper::after {
+  content: "";
+  position: absolute;
+  bottom: -6px;
+  left: 0;
+  width: 100%;
+  height: 6px;
+  background-image: linear-gradient(135deg, #ffffff 3px, transparent 0),
+                    linear-gradient(-135deg, #ffffff 3px, transparent 0);
+  background-size: 6px 6px;
+  background-repeat: repeat-x;
+}
+
+.receipt-logo {
+  display: block;
+  width: 140px;
+  height: 140px;
+  margin: 0;
+  object-fit: contain;
+}
+
+#receipt-qr-canvas {
+  width: 140px;
+  height: 140px;
+}
+
+.receipt-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 0;
+  margin-bottom: 4px;
+}
+
+.receipt-divider {
+  border-top: 1px dashed #000000;
+  margin: 6px 0;
+}
+
+.receipt-meta {
+  text-align: center;
+  font-size: 9px;
+  padding: 2px 0;
+}
+
+.receipt-title {
+  text-align: center;
+  font-weight: 700;
+  margin: 8px 0 10px 0;
+  font-size: 11px;
+}
+
+.receipt-image-container {
+  width: 100%;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  position: relative;
+  min-height: 80px;
+}
+
+.receipt-canvas {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.canvas-placeholder {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
+  gap: 0.35rem;
+}
+
+.placeholder-icon {
+  width: 2.25rem;
+  height: 2.25rem;
+  stroke-width: 1.25;
+}
+
+.receipt-caption {
+  font-size: 9px;
+  text-align: center;
+  word-wrap: break-word;
+  white-space: pre-line;
+  padding: 4px 6px;
+  line-height: 1.4;
+}
+
+.receipt-footer {
+  text-align: center;
+  margin-top: 4px;
+  margin-bottom: 4px;
+}
+
+.app-footer {
+  text-align: center;
+  margin-top: 3rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--card-border);
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+/* Compact Spacing (Eco Print) overrides */
+.receipt-paper.compact-spacing {
+  padding: 6px 10px !important;
+}
+
+.receipt-paper.compact-spacing .receipt-divider {
+  margin: 2px 0 !important;
+}
+
+.receipt-paper.compact-spacing .receipt-header {
+  margin-bottom: 1px !important;
+}
+
+.receipt-paper.compact-spacing .receipt-header p {
+  font-size: 8px !important;
+}
+
+.receipt-paper.compact-spacing .receipt-meta {
+  font-size: 8px !important;
+  padding: 1px 0 !important;
+}
+
+.receipt-paper.compact-spacing .receipt-title {
+  margin: 2px 0 4px 0 !important;
+  font-size: 9px !important;
+}
+
+.receipt-paper.compact-spacing .receipt-caption {
+  font-size: 8px !important;
+  padding: 1px 2px !important;
+}
+
+.receipt-paper.compact-spacing .receipt-footer {
+  margin-top: 1px !important;
+  margin-bottom: 1px !important;
+}
+
+.receipt-paper.compact-spacing .receipt-footer p {
+  font-size: 8px !important;
+}
+
+/* Utility layout styles */
+.font-bold {
+  font-weight: 700;
+}
+
+.font-small {
+  font-size: 8px;
+}
+
+/* Fix Chrome/Webkit Autofill yellow background bug */
+input:-webkit-autofill,
+input:-webkit-autofill:hover, 
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 30px #1e293b inset !important;
+  -webkit-text-fill-color: #f8fafc !important;
+  transition: background-color 5000s ease-in-out 0s;
+}
