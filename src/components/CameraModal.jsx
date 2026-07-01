@@ -5,8 +5,11 @@ export default function CameraModal({ isOpen, onClose, onCapture }) {
   const videoRef = useRef(null);
   const [devices, setDevices] = useState([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState('');
+  const [facingMode, setFacingMode] = useState('user'); // 'user' (front) or 'environment' (back)
   const [stream, setStream] = useState(null);
   const [error, setError] = useState('');
+  const [mirrorCapture, setMirrorCapture] = useState(false); // default to false (jangan mirror)
+
 
   // Manage camera streaming lifecycle
   useEffect(() => {
@@ -16,9 +19,11 @@ export default function CameraModal({ isOpen, onClose, onCapture }) {
 
     async function setupCamera() {
       try {
-        const constraints = selectedDeviceId 
-          ? { video: { deviceId: { exact: selectedDeviceId } } }
-          : { video: true };
+        const constraints = {
+          video: selectedDeviceId 
+            ? { deviceId: { exact: selectedDeviceId } }
+            : { facingMode: facingMode }
+        };
 
         const mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
         activeStream = mediaStream;
@@ -59,7 +64,7 @@ export default function CameraModal({ isOpen, onClose, onCapture }) {
         activeStream.getTracks().forEach(track => track.stop());
       }
     };
-  }, [isOpen, selectedDeviceId, devices.length]);
+  }, [isOpen, selectedDeviceId, devices.length, facingMode]);
 
   // Clean up streams when modal closes
   const handleClose = () => {
@@ -78,6 +83,13 @@ export default function CameraModal({ isOpen, onClose, onCapture }) {
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     const ctx = canvas.getContext('2d');
+    
+    // Draw mirrored or normal based on settings
+    if (facingMode === 'user' && !mirrorCapture) {
+      // Flip horizontally to get an unmirrored (normal) image
+      ctx.translate(canvas.width, 0);
+      ctx.scale(-1, 1);
+    }
     
     // Draw the current video frame on canvas
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
@@ -137,31 +149,99 @@ export default function CameraModal({ isOpen, onClose, onCapture }) {
           Ambil Foto dari Kamera
         </h3>
 
-        {devices.length > 1 && (
-          <div style={{ marginBottom: '1rem' }}>
-            <label style={{ fontSize: '0.85rem', color: '#94a3b8', display: 'block', marginBottom: '0.4rem' }}>Pilih Kamera:</label>
-            <select
-              value={selectedDeviceId}
-              onChange={(e) => setSelectedDeviceId(e.target.value)}
+        <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+          {devices.length > 0 && (
+            <div style={{ flex: 1, minWidth: '150px' }}>
+              <label style={{ fontSize: '0.85rem', color: '#94a3b8', display: 'block', marginBottom: '0.4rem' }}>Pilih Kamera:</label>
+              <select
+                value={selectedDeviceId}
+                onChange={(e) => {
+                  setSelectedDeviceId(e.target.value);
+                  const selectedDevice = devices.find(d => d.deviceId === e.target.value);
+                  if (selectedDevice && selectedDevice.label) {
+                    const label = selectedDevice.label.toLowerCase();
+                    if (label.includes('front') || label.includes('depan') || label.includes('user')) {
+                      setFacingMode('user');
+                    } else if (label.includes('back') || label.includes('belakang') || label.includes('environment')) {
+                      setFacingMode('environment');
+                    }
+                  }
+                }}
+                style={{
+                  width: '100%',
+                  padding: '0.6rem 0.8rem',
+                  borderRadius: '8px',
+                  background: '#1e293b',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  color: '#f8fafc',
+                  fontSize: '0.9rem',
+                  outline: 'none'
+                }}
+              >
+                {devices.map(device => (
+                  <option key={device.deviceId} value={device.deviceId}>
+                    {device.label || `Kamera ${devices.indexOf(device) + 1}`}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          
+          <button
+            onClick={() => {
+              setSelectedDeviceId('');
+              setFacingMode(prev => prev === 'user' ? 'environment' : 'user');
+            }}
+            style={{
+              padding: '0.6rem 1rem',
+              borderRadius: '8px',
+              border: '1px solid rgba(59, 130, 246, 0.3)',
+              background: 'rgba(59, 130, 246, 0.1)',
+              color: '#3b82f6',
+              fontSize: '0.9rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.4rem',
+              height: '38px',
+              whiteSpace: 'nowrap'
+            }}
+            type="button"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6"/><path d="M3 22v-6h6"/><path d="M21 13a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 11a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/></svg>
+            Putar ({facingMode === 'user' ? 'Depan' : 'Belakang'})
+          </button>
+
+          {facingMode === 'user' && (
+            <button
+              onClick={() => setMirrorCapture(prev => !prev)}
               style={{
-                width: '100%',
-                padding: '0.6rem 0.8rem',
+                padding: '0.6rem 1rem',
                 borderRadius: '8px',
-                background: '#1e293b',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
-                color: '#f8fafc',
+                border: mirrorCapture 
+                  ? '1px solid rgba(59, 130, 246, 0.3)' 
+                  : '1px solid rgba(255, 255, 255, 0.1)',
+                background: mirrorCapture 
+                  ? 'rgba(59, 130, 246, 0.1)' 
+                  : 'rgba(255, 255, 255, 0.05)',
+                color: mirrorCapture ? '#3b82f6' : '#94a3b8',
                 fontSize: '0.9rem',
-                outline: 'none'
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                height: '38px',
+                whiteSpace: 'nowrap'
               }}
+              type="button"
             >
-              {devices.map(device => (
-                <option key={device.deviceId} value={device.deviceId}>
-                  {device.label || `Kamera ${devices.indexOf(device) + 1}`}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12A10 10 0 1 1 12 2v10z"/><path d="M12 2a10 10 0 0 1 10 10H12z"/></svg>
+              {mirrorCapture ? 'Foto: Mirror' : 'Foto: Normal (Jangan Mirror)'}
+            </button>
+          )}
+        </div>
 
         {error ? (
           <div style={{
@@ -185,7 +265,7 @@ export default function CameraModal({ isOpen, onClose, onCapture }) {
             background: '#020617',
             marginBottom: '1.25rem',
             border: '1px solid rgba(255, 255, 255, 0.05)',
-            transform: 'scaleX(-1)' // Mirror effect for user convenience
+            transform: facingMode === 'user' ? 'scaleX(-1)' : 'none'
           }}>
             <video
               ref={videoRef}

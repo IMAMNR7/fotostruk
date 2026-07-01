@@ -37,8 +37,19 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+.app-container {
+  display: flex;
+  flex-direction: row;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+  background-color: #090d16;
+  color: #f8fafc;
+}
+
 /* Sidebar and Panels */
 .sidebar {
+  width: 380px;
   background-color: var(--bg-sidebar);
   border-right: 1px solid var(--card-border);
   padding: 1.5rem;
@@ -46,6 +57,10 @@ body {
   box-shadow: 10px 0 30px rgba(0,0,0,0.5);
   scrollbar-width: thin;
   scrollbar-color: rgba(255,255,255,0.05) transparent;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  overflow-y: auto;
 }
 
 .sidebar::-webkit-scrollbar {
@@ -299,7 +314,12 @@ body {
 
 /* Main Layout & Receipt Mockup */
 .main-content {
+  flex: 1;
   background-color: var(--bg-app);
+  display: flex;
+  flex-direction: column;
+  padding: 1.5rem;
+  overflow-y: auto;
 }
 
 .printer-mockup {
@@ -515,4 +535,54 @@ input:-webkit-autofill:active {
   -webkit-box-shadow: 0 0 0 30px #1e293b inset !important;
   -webkit-text-fill-color: #f8fafc !important;
   transition: background-color 5000s ease-in-out 0s;
+}
+
+/* Responsive Styles for Mobile and Tablets */
+@media (max-width: 768px) {
+  body {
+    overflow: auto;
+  }
+  
+  .app-container {
+    flex-direction: column; /* Stack preview on top, controls below */
+    height: auto;
+    min-height: 100vh;
+    overflow-y: visible;
+  }
+  
+  .main-content {
+    order: 1; /* Preview on top */
+    width: 100%;
+    height: auto;
+    padding: 1rem;
+    overflow-y: visible;
+  }
+  
+  .sidebar {
+    order: 2; /* Controls at the bottom */
+    width: 100%;
+    height: auto;
+    border-right: none;
+    border-top: 1px solid var(--card-border);
+    padding: 1.25rem 1rem;
+    box-shadow: 0 -10px 30px rgba(0,0,0,0.35);
+    overflow-y: visible;
+  }
+  
+  .printer-mockup {
+    width: 100%;
+    max-width: 340px;
+  }
+  
+  /* Optimize upload area for smaller screens */
+  .upload-area {
+    padding: 1rem;
+  }
+  
+  /* Make header flex row wrapped for logo and link */
+  .app-header {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+  }
 }

@@ -11,56 +11,55 @@ export function getRedirectUrl(targetUrl) {
   return `${redirectBase}?url=${encodeURIComponent(targetUrl)}`;
 }
 
-// Packages canvas pixel data to ESC/POS GS v 0 binary format
-export function getPrinterImageBytes(canvasElement) {
+// Convert canvas to array of raster band buffers (24 rows each for speed)
+// Each band is a complete GS v 0 command
+export function getPrinterImageBands(canvasElement) {
   const ctx = canvasElement.getContext('2d');
-  const width = canvasElement.width; // e.g. 384
+  const width = canvasElement.width;
   const height = canvasElement.height;
+  const xBytes = Math.floor(width / 8);
+  const BAND = 24; // 24 rows per band — good balance of speed vs buffer safety
   
   const imgData = ctx.getImageData(0, 0, width, height);
   const data = imgData.data;
+  const bands = [];
   
-  const xBytes = Math.floor(width / 8);
-  const xL = xBytes % 256;
-  const xH = Math.floor(xBytes / 256);
-  const yL = height % 256;
-  const yH = Math.floor(height / 256);
-  
-  // ESC/POS header for raster bit image print command: GS v 0 0 xL xH yL yH
-  const header = new Uint8Array([0x1D, 0x76, 0x30, 0, xL, xH, yL, yH]);
-  
-  const buffer = [];
-  for (let y = 0; y < height; y++) {
-    for (let xByte = 0; xByte < xBytes; xByte++) {
-      let byteVal = 0;
-      for (let bit = 0; bit < 8; bit++) {
-        const x = xByte * 8 + bit;
-        const pixelIdx = (y * width + x) * 4;
-        
-        let isBlack = 0;
-        if (pixelIdx < data.length) {
-          const r = data[pixelIdx];
-          const g = data[pixelIdx + 1];
-          const b = data[pixelIdx + 2];
-          const a = data[pixelIdx + 3];
-          
-          if (a >= 10) {
-            const gray = 0.299 * r + 0.587 * g + 0.114 * b;
-            if (gray < 128) {
-              isBlack = 1;
+  for (let bandY = 0; bandY < height; bandY += BAND) {
+    const bandH = Math.min(BAND, height - bandY);
+    
+    const xL = xBytes % 256;
+    const xH = Math.floor(xBytes / 256);
+    const yL = bandH % 256;
+    const yH = Math.floor(bandH / 256);
+    const header = new Uint8Array([0x1D, 0x76, 0x30, 0, xL, xH, yL, yH]);
+    
+    const rowBytes = new Uint8Array(xBytes * bandH);
+    let ri = 0;
+    
+    for (let y = bandY; y < bandY + bandH; y++) {
+      for (let xByte = 0; xByte < xBytes; xByte++) {
+        let byteVal = 0;
+        for (let bit = 0; bit < 8; bit++) {
+          const x = xByte * 8 + bit;
+          const pixelIdx = (y * width + x) * 4;
+          if (pixelIdx < data.length) {
+            const gray = 0.299 * data[pixelIdx] + 0.587 * data[pixelIdx+1] + 0.114 * data[pixelIdx+2];
+            if (data[pixelIdx+3] >= 10 && gray < 128) {
+              byteVal |= (1 << (7 - bit));
             }
           }
         }
-        byteVal |= (isBlack << (7 - bit));
+        rowBytes[ri++] = byteVal;
       }
-      buffer.push(byteVal);
     }
+    
+    const band = new Uint8Array(header.length + rowBytes.length);
+    band.set(header, 0);
+    band.set(rowBytes, header.length);
+    bands.push(band);
   }
   
-  const combined = new Uint8Array(header.length + buffer.length);
-  combined.set(header, 0);
-  combined.set(new Uint8Array(buffer), header.length);
-  return combined;
+  return bands;
 }
 
 // Connect to a Web Bluetooth BLE thermal printer
@@ -69,14 +68,14 @@ export async function connectBluetooth(onStatusChange) {
     onStatusChange('Menghubungkan...');
     
     bleDevice = await navigator.bluetooth.requestDevice({
-      filters: [
-        { services: ['000018f0-0000-1000-8000-00805f9b34fb'] },
-        { services: ['49535343-fe7d-4ae5-8fa9-9fafd205e455'] }
-      ],
+      acceptAllDevices: true,
       optionalServices: [
-        '000018f0-0000-1000-8000-00805f9b34fb',
-        'e7810a71-73ae-499d-8c15-faa9aef0c3f2',
-        '49535343-fe7d-4ae5-8fa9-9fafd205e455'
+        '000018f0-0000-1000-8000-00805f9b34fb', // Common printer service 1
+        '49535343-fe7d-4ae5-8fa9-9fafd205e455', // Common printer service 2 (ISSC)
+        'e7810a71-73ae-499d-8c15-faa9aef0c3f2', // Printer service 3
+        '000018f1-0000-1000-8000-00805f9b34fb',
+        '0000af30-0000-1000-8000-00805f9b34fb',
+        '0000e781-0000-1000-8000-00805f9b34fb'
       ]
     });
     
@@ -120,27 +119,61 @@ export async function disconnectBluetooth(onStatusChange) {
   onStatusChange('Terputus');
 }
 
-// Send printing binary packets chunk-by-chunk to the printer
+// Optimized BLE data transmission with adaptive flow control
 async function writeBytes(data) {
   if (!bleCharacteristic) return;
   
   const hasWithoutResponse = bleCharacteristic.properties.writeWithoutResponse;
-  const maxChunkSize = 120; // 120-byte payload is fast and safe for BLE printers
+  // 120 bytes is a safe chunk size for most BLE adapters (fits comfortably in typical MTU)
+  const maxChunkSize = 120; 
   let offset = 0;
   
   while (offset < data.length) {
     const chunk = data.slice(offset, offset + maxChunkSize);
-    if (hasWithoutResponse) {
-      await bleCharacteristic.writeValueWithoutResponse(chunk);
-      // Small 5ms delay to prevent overflow in write without response
-      await new Promise(r => setTimeout(r, 5));
-    } else {
-      await bleCharacteristic.writeValue(chunk);
-      // No extra delay needed for write with response as await resolves after GATT ack
+    try {
+      if (hasWithoutResponse) {
+        await bleCharacteristic.writeValueWithoutResponse(chunk);
+        // 10ms delay is the sweet spot for 115200bps internal serial bridge (1.2KB/s per 10ms)
+        // Shorter delay might overflow serial buffer; longer delay causes motor stuttering
+        await new Promise(r => setTimeout(r, 10)); 
+      } else {
+        await bleCharacteristic.writeValue(chunk);
+        // writeValue (with response) naturally awaits BLE link-layer ACK.
+        // We only need a tiny 2ms delay to give the printer's MCU a brief moment to copy the buffer
+        await new Promise(r => setTimeout(r, 2));
+      }
+    } catch (writeErr) {
+      console.warn('BLE write retry:', writeErr.message);
+      await new Promise(r => setTimeout(r, 100)); // longer pause on error
+      if (hasWithoutResponse) {
+        await bleCharacteristic.writeValueWithoutResponse(chunk);
+      } else {
+        await bleCharacteristic.writeValue(chunk);
+      }
+      await new Promise(r => setTimeout(r, 20));
     }
     offset += maxChunkSize;
   }
 }
+
+// Send image bands with minimal pauses to maintain motor momentum (prevent stuttering)
+// while avoiding buffer overflow.
+async function writeImageBands(bands) {
+  for (let i = 0; i < bands.length; i++) {
+    await writeBytes(bands[i]);
+    
+    // We only pause for 15ms. This is short enough that the printer's motor keeps spinning
+    // continuously (avoiding stuttering lines), but gives the CPU a tiny moment to process.
+    await new Promise(r => setTimeout(r, 15));
+    
+    // A moderate 40ms pause every 4 bands is enough to let the printer clear any backlog
+    // without letting the motor completely stop.
+    if ((i + 1) % 4 === 0) {
+      await new Promise(r => setTimeout(r, 40));
+    }
+  }
+}
+
 
 // Compile layout elements and send to bluetooth thermal printer
 export async function printViaBluetooth(photosCanvas, logoImg, driveUrl, printSections, spacingMode, captionText) {
@@ -168,12 +201,12 @@ export async function printViaBluetooth(photosCanvas, logoImg, driveUrl, printSe
     if (showHeader || showQr) {
       const headerCanvas = document.createElement('canvas');
       headerCanvas.width = 384;
-      headerCanvas.height = 230;
+      headerCanvas.height = 216; // Must match the area we process with getImageData
       const ctx = headerCanvas.getContext('2d');
       
       // White canvas background
       ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, 384, 230);
+      ctx.fillRect(0, 0, 384, 216);
       
       const hasLogo = showHeader && logoImg && logoImg.complete && logoImg.naturalWidth > 0;
       
@@ -199,14 +232,15 @@ export async function printViaBluetooth(photosCanvas, logoImg, driveUrl, printSe
         const tempQrCanvas = document.createElement('canvas');
         tempQrCanvas.width = 170;
         tempQrCanvas.height = 170;
-        const finalUrl = getRedirectUrl(driveUrl.trim());
+        // Use driveUrl directly — it's already a full redirect.html?p=... URL
+        const finalUrl = driveUrl.trim();
         new QRious({
           element: tempQrCanvas,
           value: finalUrl,
           size: 170,
           background: 'white',
           foreground: 'black',
-          level: 'M'
+          level: 'H'
         });
         ctx.drawImage(tempQrCanvas, 209, 10, 170, 170);
         ctx.fillStyle = '#000000';
@@ -226,14 +260,15 @@ export async function printViaBluetooth(photosCanvas, logoImg, driveUrl, printSe
         const tempQrCanvas = document.createElement('canvas');
         tempQrCanvas.width = 150;
         tempQrCanvas.height = 150;
-        const finalUrl = getRedirectUrl(driveUrl.trim());
+        // Use driveUrl directly — it's already a full redirect.html?p=... URL
+        const finalUrl = driveUrl.trim();
         new QRious({
           element: tempQrCanvas,
           value: finalUrl,
           size: 150,
           background: 'white',
           foreground: 'black',
-          level: 'M'
+          level: 'H'
         });
         ctx.drawImage(tempQrCanvas, 117, 10, 150, 150);
         ctx.fillStyle = '#000000';
@@ -243,7 +278,7 @@ export async function printViaBluetooth(photosCanvas, logoImg, driveUrl, printSe
       }
       
       // Apply clean B&W dither/threshold to the header
-      const imgData = ctx.getImageData(0, 0, 384, 190);
+      const imgData = ctx.getImageData(0, 0, 384, 216);
       const data = imgData.data;
       for (let i = 0; i < data.length; i += 4) {
         const r = data[i];
@@ -295,8 +330,10 @@ export async function printViaBluetooth(photosCanvas, logoImg, driveUrl, printSe
       }
       ctx.putImageData(imgData, 0, 0);
       
-      const headerBytes = getPrinterImageBytes(headerCanvas);
-      chunks.push(headerBytes);
+      // Send header bands individually (NOT concatenated) to prevent buffer overflow
+      const headerBands = getPrinterImageBands(headerCanvas);
+      // We'll store header bands separately and send them one by one during print
+      chunks.push({ type: 'image_bands', bands: headerBands });
       chunks.push(encoder.encode("\n"));
       chunks.push(encoder.encode(dividerText));
     }
@@ -323,46 +360,94 @@ export async function printViaBluetooth(photosCanvas, logoImg, driveUrl, printSe
       chunks.push(new Uint8Array([0x1B, 0x45, 0x00])); // unbold
     }
     
-    // 4. Photos Canvas
+    // 4. Photos Canvas — send as individual bands with drain pauses
     if (photosCanvas) {
-      const imgBytes = getPrinterImageBytes(photosCanvas);
-      chunks.push(imgBytes);
-      chunks.push(encoder.encode("\n"));
+      const bands = getPrinterImageBands(photosCanvas);
+      
+      // Send header+text chunks first — handle image_bands separately
+      for (const chunk of chunks) {
+        if (chunk.type === 'image_bands') {
+          // Send header image bands individually with proper pacing
+          await writeImageBands(chunk.bands);
+          await new Promise(r => setTimeout(r, 100));
+        } else {
+          await writeBytes(chunk);
+          await new Promise(r => setTimeout(r, 20));
+        }
+      }
+      await new Promise(r => setTimeout(r, 100)); // pause before photo image data
+      
+      // Send photo bands with drain pauses
+      await writeImageBands(bands);
+      await new Promise(r => setTimeout(r, 100)); // pause after image
+      
+      // Send remaining footer chunks
+      const footerChunks = [];
+      footerChunks.push(encoder.encode("\n"));
+      
+      // 5. Message Caption
+      if (printSections.caption && captionText.trim() !== "") {
+        footerChunks.push(encoder.encode(dividerText));
+        footerChunks.push(new Uint8Array([0x1B, 0x61, 0x00]));
+        footerChunks.push(encoder.encode(captionText.trim() + "\n"));
+        footerChunks.push(new Uint8Array([0x1B, 0x61, 0x01]));
+      }
+      
+      // 6. Footer Info
+      if (printSections.footer) {
+        footerChunks.push(encoder.encode(dividerText));
+        footerChunks.push(new Uint8Array([0x1B, 0x45, 0x01]));
+        footerChunks.push(encoder.encode("Terima Kasih Sudah Mampir\n"));
+        footerChunks.push(new Uint8Array([0x1B, 0x45, 0x00]));
+      }
+      
+      // Feed and cut
+      footerChunks.push(encoder.encode("\n\n\n"));
+      footerChunks.push(new Uint8Array([0x1D, 0x56, 0x42, 0x00]));
+      
+      let footerLen = footerChunks.reduce((a, c) => a + c.length, 0);
+      const footerBuffer = new Uint8Array(footerLen);
+      let fOff = 0;
+      for (const fc of footerChunks) {
+        footerBuffer.set(fc, fOff);
+        fOff += fc.length;
+      }
+      await writeBytes(footerBuffer);
+      
     } else {
       chunks.push(encoder.encode("[ Tidak Ada Foto ]\n\n"));
+      
+      // 5. Message Caption
+      if (printSections.caption && captionText.trim() !== "") {
+        chunks.push(encoder.encode(dividerText));
+        chunks.push(new Uint8Array([0x1B, 0x61, 0x00]));
+        chunks.push(encoder.encode(captionText.trim() + "\n"));
+        chunks.push(new Uint8Array([0x1B, 0x61, 0x01]));
+      }
+      
+      // 6. Footer Info
+      if (printSections.footer) {
+        chunks.push(encoder.encode(dividerText));
+        chunks.push(new Uint8Array([0x1B, 0x45, 0x01]));
+        chunks.push(encoder.encode("Terima Kasih Sudah Mampir\n"));
+        chunks.push(new Uint8Array([0x1B, 0x45, 0x00]));
+      }
+      
+      chunks.push(encoder.encode("\n\n\n"));
+      chunks.push(new Uint8Array([0x1D, 0x56, 0x42, 0x00]));
+      
+      // Send chunks individually, handling image_bands separately
+      for (const chunk of chunks) {
+        if (chunk.type === 'image_bands') {
+          await writeImageBands(chunk.bands);
+          await new Promise(r => setTimeout(r, 100));
+        } else {
+          await writeBytes(chunk);
+          await new Promise(r => setTimeout(r, 20));
+        }
+      }
     }
     
-    // 5. Message Caption
-    if (printSections.caption && captionText.trim() !== "") {
-      chunks.push(encoder.encode(dividerText));
-      chunks.push(new Uint8Array([0x1B, 0x61, 0x00])); // left align
-      chunks.push(encoder.encode(captionText.trim() + "\n"));
-      chunks.push(new Uint8Array([0x1B, 0x61, 0x01])); // center align
-    }
-    
-    // 6. Footer Info
-    if (printSections.footer) {
-      chunks.push(encoder.encode(dividerText));
-      chunks.push(new Uint8Array([0x1B, 0x45, 0x01])); // bold
-      chunks.push(encoder.encode("Terima Kasih Sudah Mampir\n"));
-      chunks.push(new Uint8Array([0x1B, 0x45, 0x00])); // unbold
-    }
-    
-    // Feed and cut paper commands
-    chunks.push(encoder.encode("\n\n\n"));
-    chunks.push(new Uint8Array([0x1D, 0x56, 0x42, 0x00])); // Feed paper and cut
-    
-    // Concatenate all chunks
-    let totalLength = chunks.reduce((acc, curr) => acc + curr.length, 0);
-    const resultBuffer = new Uint8Array(totalLength);
-    let currentOffset = 0;
-    for (const chunk of chunks) {
-      resultBuffer.set(chunk, currentOffset);
-      currentOffset += chunk.length;
-    }
-    
-    // Send to Bluetooth characteristics
-    await writeBytes(resultBuffer);
     return true;
   } catch (err) {
     console.error("Printing failed:", err);

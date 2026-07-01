@@ -5,6 +5,7 @@ export default function Sidebar({
   photosList,
   onAddPhoto,
   onRemovePhoto,
+  onTogglePrintSelect,
   onReset,
   connectionStatus,
   onConnectBluetooth,
@@ -33,8 +34,8 @@ export default function Sidebar({
       const file = files[i];
       if (!file.type.startsWith('image/')) continue;
       
-      if (photosList.length >= 6) {
-        alert("Maksimal 6 foto telah tercapai. Hapus beberapa foto untuk menambah baru!");
+      if (photosList.length >= 20) {
+        alert("Maksimal 20 foto telah tercapai. Hapus beberapa foto untuk menambah baru!");
         break;
       }
       
@@ -55,7 +56,7 @@ export default function Sidebar({
   };
 
   return (
-    <aside className="sidebar" style={{ width: '380px', display: 'flex', flexDirection: 'column', gap: '1.25rem', overflowY: 'auto' }}>
+    <aside className="sidebar">
       
       {/* 1. Bluetooth Connection Panel */}
       <div className="card card-bluetooth">
@@ -137,14 +138,60 @@ export default function Sidebar({
             <div style={{ marginTop: '0.75rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: '#94a3b8', marginBottom: '0.4rem' }}>
                 <span>Foto Terpilih:</span>
-                <span>{photosList.length} / 6 foto</span>
+                <span>{photosList.length} foto ({photosList.filter(p => p.selectedForPrint).length} untuk cetak)</span>
               </div>
               <div className="thumbnail-grid">
                 {photosList.map((photo, idx) => (
-                  <div key={photo.id} className="thumbnail-item">
-                    <img src={photo.src} alt="Thumbnail" />
+                  <div 
+                    key={photo.id} 
+                    className="thumbnail-item" 
+                    onClick={() => onTogglePrintSelect(idx)}
+                    style={{ 
+                      border: photo.selectedForPrint 
+                        ? '2px solid #3b82f6' 
+                        : '2px solid rgba(255,255,255,0.1)',
+                      cursor: 'pointer',
+                      position: 'relative'
+                    }}
+                  >
+                    <img src={photo.src} alt="Thumbnail" style={{
+                      opacity: photo.selectedForPrint ? 1 : 0.4,
+                      transition: 'opacity 0.2s ease'
+                    }} />
+                    {/* Dim overlay when not selected */}
+                    {!photo.selectedForPrint && (
+                      <div style={{
+                        position: 'absolute',
+                        inset: 0,
+                        background: 'rgba(0,0,0,0.4)',
+                        borderRadius: 'inherit',
+                        pointerEvents: 'none'
+                      }} />
+                    )}
+                    {/* Print selection checkbox — large and easy to see */}
+                    <div
+                      style={{
+                        position: 'absolute',
+                        bottom: '4px',
+                        left: '4px',
+                        width: '26px',
+                        height: '26px',
+                        borderRadius: '6px',
+                        background: photo.selectedForPrint ? '#3b82f6' : 'rgba(100,116,139,0.7)',
+                        color: 'white',
+                        fontSize: '16px',
+                        fontWeight: 'bold',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        pointerEvents: 'none',
+                        boxShadow: '0 1px 4px rgba(0,0,0,0.3)'
+                      }}
+                    >
+                      {photo.selectedForPrint ? '✓' : ''}
+                    </div>
                     <button 
-                      onClick={() => onRemovePhoto(idx)}
+                      onClick={(e) => { e.stopPropagation(); onRemovePhoto(idx); }}
                       className="thumbnail-delete"
                       title="Hapus foto"
                     >
@@ -153,6 +200,9 @@ export default function Sidebar({
                   </div>
                 ))}
               </div>
+              <p style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '0.4rem', textAlign: 'center' }}>
+                Ketuk foto untuk pilih/batal cetak
+              </p>
             </div>
           )}
         </div>

@@ -58,28 +58,11 @@ export default function App() {
   // References for Canvas and Logo image
   const canvasRef = useRef(null);
   const logoImgRef = useRef(null);
-  const sessionIdRef = useRef('');
   const syncTimeoutRef = useRef(null);
 
-  // Sync photos to server in real-time
+  // Sync photos to server in real-time (Supabase Storage version)
   const syncPhotosToServer = async (currentPhotos) => {
     if (currentPhotos.length === 0) {
-      // If no photos left, and we have a session, clear the session on server
-      if (sessionIdRef.current) {
-        try {
-          let uploadUrl = window.location.port === '8080' 
-            ? 'http://localhost:5000/api/upload' 
-            : window.location.origin + '/api/upload';
-            
-          await fetch(uploadUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ images: [], sessionId: sessionIdRef.current })
-          });
-        } catch (e) {
-          console.error("Error clearing empty session:", e);
-        }
-      }
       setUploadedQrUrl('');
       return;
     }
@@ -93,37 +76,32 @@ export default function App() {
       // Determine upload API URL
       let uploadUrl;
       if (window.location.port === '8080') {
-        uploadUrl = 'http://localhost:5000/api/upload';
+        uploadUrl = 'http://localhost:8888/.netlify/functions/upload';
       } else {
-        uploadUrl = window.location.origin + '/api/upload';
+        uploadUrl = '/.netlify/functions/upload';
       }
-
-      const sessionIdToUse = sessionIdRef.current;
 
       const response = await fetch(uploadUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          images: webpImages, 
-          sessionId: sessionIdToUse || null 
-        })
+        body: JSON.stringify({ images: webpImages })
       });
 
       const result = await response.json();
       if (result.success) {
-        sessionIdRef.current = result.id;
-        
-        let printUrl = result.url;
+        let printUrl;
         if (window.location.port === '8080') {
-          printUrl = `http://localhost:8080/redirect.html?id=${result.id}`;
+          printUrl = `http://localhost:8080/redirect.html?s=${result.sessionId}`;
+        } else {
+          printUrl = `${window.location.origin}/redirect.html?s=${result.sessionId}`;
         }
         setUploadedQrUrl(printUrl);
-        console.log('Photos synced successfully. Session ID:', result.id);
+        console.log('Photos uploaded to Supabase. Session:', result.sessionId);
       } else {
-        console.error('Failed to sync photos:', result.message);
+        console.error('Failed to upload photos to Supabase:', result.message, result.errors || '');
       }
     } catch (err) {
-      console.error('Error syncing photos to server:', err);
+      console.error('Error uploading photos to Supabase:', err);
     }
   };
 
@@ -139,7 +117,7 @@ export default function App() {
   // Handlers
   const handleAddPhoto = (newPhoto) => {
     setPhotosList(prev => {
-      const updated = [...prev, newPhoto];
+      const updated = [...prev, { ...newPhoto, selectedForPrint: true }];
       triggerSync(updated);
       return updated;
     });
@@ -149,6 +127,15 @@ export default function App() {
     setPhotosList(prev => {
       const updated = prev.filter((_, i) => i !== idx);
       triggerSync(updated);
+      return updated;
+    });
+  };
+
+  const handleTogglePrintSelect = (idx) => {
+    setPhotosList(prev => {
+      const updated = prev.map((photo, i) => 
+        i === idx ? { ...photo, selectedForPrint: !photo.selectedForPrint } : photo
+      );
       return updated;
     });
   };
@@ -174,7 +161,6 @@ export default function App() {
     setDriveUrl(getDefaultQrUrl());
     setCaptionText('Kunjungan Stan Exhibition HIMSI');
     setUploadedQrUrl('');
-    sessionIdRef.current = '';
   };
 
   const handleConnect = async () => {
@@ -182,6 +168,15 @@ export default function App() {
       await connectBluetooth(setConnectionStatus);
     } catch (err) {
       console.error(err);
+      alert(
+        "Koneksi Bluetooth Gagal!\n\n" +
+        "Silakan pastikan langkah-langkah berikut:\n" +
+        "1. Printer Thermal dalam keadaan AKTIF dan baterai terisi.\n" +
+        "2. Fitur Bluetooth dan GPS/Lokasi di HP Anda wajib menyala.\n" +
+        "3. Pastikan aplikasi Google Chrome di HP Anda sudah diberikan izin 'Perangkat Sekitar' (Nearby Devices) & 'Lokasi' di menu Pengaturan HP.\n" +
+        "4. Printer Bluetooth BLE hanya dapat tersambung ke 1 perangkat dalam satu waktu. Pastikan printer tidak sedang terkoneksi ke HP lain.\n" +
+        "5. Pengguna iPhone/iOS: Gunakan aplikasi browser khusus seperti 'Bluefy' atau 'WebBLE' karena Apple Safari tidak mendukung Web Bluetooth."
+      );
     }
   };
 
@@ -235,13 +230,14 @@ export default function App() {
   };
 
   return (
-    <div className="app-container" style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: '#090d16', color: '#f8fafc' }}>
+    <div className="app-container">
       
       {/* Sidebar Panel */}
       <Sidebar
         photosList={photosList}
         onAddPhoto={handleAddPhoto}
         onRemovePhoto={handleRemovePhoto}
+        onTogglePrintSelect={handleTogglePrintSelect}
         onReset={handleReset}
         brightness={brightness}
         setBrightness={setBrightness}
@@ -266,7 +262,7 @@ export default function App() {
       />
 
       {/* Main Preview Panel */}
-      <main className="main-content" style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '1.5rem', overflowY: 'auto' }}>
+      <main className="main-content">
         <header className="app-header" style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             <a 
@@ -327,7 +323,7 @@ export default function App() {
         </header>
 
         <ReceiptPreview
-          photosList={photosList}
+          photosList={photosList.filter(p => p.selectedForPrint)}
           brightness={brightness}
           contrast={contrast}
           filterMode={filterMode}

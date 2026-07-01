@@ -24,3 +24,9 @@ uploads/*
 *.njsproj
 *.sln
 *.sw?
+
+# Environment variables
+.env
+
+# Local Netlify folder
+.netlify
